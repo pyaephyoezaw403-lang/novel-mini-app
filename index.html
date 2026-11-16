@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Novel Reader Mini App</title>
+  <!-- Telegram Mini App Official SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --text-main: #f8fafc;
+      --text-sub: #94a3b8;
+      --accent: #38bdf8;
+      --accent-btn: #0284c7;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      /* စာသား Copy ကူးခြင်းနှင့် Long-press ဆွဲခြင်းကို လုံးဝပိတ်ထားခြင်း */
+      -webkit-user-select: none !important;
+      -moz-user-select: none !important;
+      -ms-user-select: none !important;
+      user-select: none !important;
+      -webkit-touch-callout: none !important;
+    }
+
+    body {
+      font-family: 'Padauk', 'Pyidaungsu', 'Myanmar Text', sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding-bottom: 75px;
+      overflow-x: hidden;
+    }
+
+    /* Header */
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(15, 23, 42, 0.95);
+      backdrop-filter: blur(8px);
+      padding: 14px 16px;
+      border-bottom: 1px solid #334155;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .app-title {
+      font-size: 18px;
+      font-weight: bold;
+      color: var(--accent);
+    }
+    .user-badge {
+      font-size: 12px;
+      background: #334155;
+      padding: 4px 10px;
+      border-radius: 20px;
+      color: #e2e8f0;
+    }
+
+    /* Container */
+    .container {
+      padding: 16px;
+    }
+
+    /* Book Grid */
+    .book-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+    .book-card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #334155;
+      cursor: pointer;
+      transition: transform 0.15s;
+      display: flex;
+      flex-direction: column;
+    }
+    .book-card:active {
+      transform: scale(0.97);
+    }
+    .book-cover {
+      width: 100%;
+      height: 190px;
+      object-fit: cover;
+      background: #0f172a;
+      pointer-events: none;
+    }
+    .book-info {
+      padding: 10px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .book-title {
+      font-size: 14px;
+      font-weight: bold;
+      line-height: 1.4;
+      margin-bottom: 8px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: bold;
+      text-align: center;
+    }
+    .badge-free { background: rgba(34, 197, 94, 0.2); color: #4ade80; }
+    .badge-paid { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+    .badge-owned { background: rgba(56, 189, 248, 0.2); color: #38bdf8; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      border: none;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      color: #fff;
+      background: var(--accent-btn);
+      width: 100%;
+      margin-top: 8px;
+    }
+    .btn-secondary { background: #475569; }
+    .btn-buy { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .btn-sm { width: auto; padding: 6px 12px; font-size: 13px; margin-top: 0; }
+
+    /* Chapters List */
+    .chapter-item {
+      background: var(--card-bg);
+      padding: 14px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      border: 1px solid #334155;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+    }
+    .chapter-item:active { background: #334155; }
+
+    /* Reader View & Anti-Piracy Watermark */
+    .reader-box {
+      position: relative;
+      background: #131c31;
+      padding: 20px 16px;
+      border-radius: 12px;
+      border: 1px solid #334155;
+      min-height: 75vh;
+      overflow: hidden;
+    }
+    .reader-content {
+      position: relative;
+      z-index: 2;
+      line-height: 1.9;
+      font-size: 17px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #e2e8f0;
+    }
+
+    /* Dynamic Watermark Overlay */
+    .watermark-layer {
+      position: fixed;
+      top: -20%;
+      left: -20%;
+      width: 140%;
+      height: 140%;
+      z-index: 30;
+      pointer-events: none;
+      display: none !important;
+      flex-wrap: wrap;
+      justify-content: space-around;
+      align-content: space-around;
+      transform: rotate(-28deg);
+      opacity: 0.14;
+      overflow: hidden;
+    }
+    .watermark-item {
+      font-size: 13px;
+      font-weight: bold;
+      color: #ffffff;
+      padding: 28px 18px;
+      white-space: nowrap;
+    }
+
+    /* Blur Screen Protection */
+    .blurred-protection {
+      filter: blur(22px) !important;
+      pointer-events: none !important;
+    }
+    #securityOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.96);
+      z-index: 9999;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 24px;
+    }
+
+    /* Folders / Bookshelf */
+    .folder-tabs {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      padding-bottom: 10px;
+      margin-bottom: 14px;
+    }
+    .folder-tab {
+      background: var(--card-bg);
+      color: var(--text-sub);
+      padding: 8px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      white-space: nowrap;
+      border: 1px solid #334155;
+      cursor: pointer;
+    }
+    .folder-tab.active {
+      background: var(--accent-btn);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    /* Bottom Navigation */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(15, 23, 42, 0.98);
+      border-top: 1px solid #334155;
+      display: flex;
+      z-index: 60;
+    }
+    .nav-item {
+      flex: 1;
+      text-align: center;
+      padding: 12px 0;
+      font-size: 13px;
+      color: var(--text-sub);
+      cursor: pointer;
+    }
+    .nav-item.active {
+      color: var(--accent);
+      font-weight: bold;
+    }
+
+    /* Modal */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+      padding: 16px;
+    }
+    .modal-card {
+      background: var(--card-bg);
+      border: 1px solid #475569;
+      border-radius: 12px;
+      padding: 20px;
+      width: 100%;
+      max-width: 380px;
+    }
+    .input-box {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: #fff;
+      margin-top: 8px;
+      margin-bottom: 12px;
+      -webkit-user-select: text !important;
+      user-select: text !important;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- လုံခြုံရေး Blur Screen ပေါ်လာမည့် မျက်နှာပြင် -->
+  <div id="securityOverlay" onclick="resumeFromBlur()">
+    <h2 style="color: #fbbf24; margin-bottom: 10px;">⚠️ လုံခြုံရေး သတိပေးချက်</h2>
+    <p style="color: #cbd5e1; line-height: 1.6; margin-bottom: 18px;">
+      Screenshot ရိုက်ခြင်း သို့မဟုတ် App ပြောင်းလဲခြင်းကို ကာကွယ်ရန် စာမျက်နှာကို ယာယီဖုံးအုပ်ထားပါသည်။
+    </p>
+    <button class="btn btn-sm">📖 စာဆက်ဖတ်ရန် ဤနေရာကို နှိပ်ပါ</button>
+  </div>
+
+  <!-- Dynamic Watermark (စာဖတ်ချိန်တွင် ပေါ်မည့် ရေစာ) -->
+  <div id="watermarkContainer" class="watermark-layer" style="display: none;"></div>
+
+  <!-- Header -->
+  <div class="app-header">
+    <div class="app-title">📚 Novel Mini App</div>
+    <div id="userBadge" class="user-badge">စစ်ဆေးနေသည်...</div>
+  </div>
+
+  <!-- Main Content -->
+  <div id="mainWrapper" class="container">
+    <!-- 1. Store View -->
+    <div id="storeView">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h3 style="font-size:16px;">📖 စာအုပ်များအားလုံး</h3>
+        <button class="btn btn-sm btn-secondary" onclick="loadCatalog()">🔄 Refresh</button>
+      </div>
+      <div id="bookList" class="book-grid"></div>
+    </div>
+
+    <!-- 2. Book Detail & Chapters View -->
+    <div id="bookDetailView" style="display: none;">
+      <button class="btn btn-sm btn-secondary" style="margin-bottom: 14px;" onclick="showView('storeView')">⬅ နောက်သို့</button>
+      <div id="bookDetailHeader"></div>
+      <h3 style="font-size:16px; margin: 18px 0 10px;">📑 အပိုင်းတွဲများ (Chapters)</h3>
+      <div id="chapterList"></div>
+    </div>
+
+    <!-- 3. Reader View -->
+    <div id="readerView" style="display: none;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+        <button class="btn btn-sm btn-secondary" onclick="closeReader()">⬅ အပိုင်းစာရင်းသို့</button>
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-sm btn-secondary" onclick="changeFontSize(-2)">A-</button>
+          <button class="btn btn-sm btn-secondary" onclick="changeFontSize(2)">A+</button>
+        </div>
+      </div>
+      <div class="reader-box">
+        <h3 id="readerTitle" style="color: var(--accent); margin-bottom: 14px; font-size: 18px;"></h3>
+        <div id="readerText" class="reader-content"></div>
+      </div>
+      <div style="display:flex; gap:10px; margin-top: 14px;">
+        <button id="prevChapBtn" class="btn btn-secondary">⬅ ရှေ့အပိုင်း</button>
+        <button id="nextChapBtn" class="btn">နောက်အပိုင်း ➡</button>
+      </div>
+    </div>
+
+    <!-- 4. Bookshelf / Folders View -->
+    <div id="shelfView" style="display: none;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h3 style="font-size:16px;">🗂 ကိုယ်ပိုင်စာအုပ်စင် (Folders)</h3>
+        <button class="btn btn-sm" onclick="createNewFolderPrompt()">+ အကန့်သစ်လုပ်မည်</button>
+      </div>
+      <div id="folderTabs" class="folder-tabs"></div>
+      <div id="shelfBookList" class="book-grid"></div>
+    </div>
+  </div>
+
+  <!-- Folder Save Modal -->
+  <div id="folderModal" class="modal-backdrop">
+    <div class="modal-card">
+      <h3 style="margin-bottom: 10px; font-size: 16px;">⭐ သိမ်းဆည်းမည့် အကန့် (Folder) ရွေးပါ</h3>
+      <div id="modalFolderOptions" style="margin-bottom: 12px;"></div>
+      <input type="text" id="newFolderInput" class="input-box" placeholder="အကန့်အသစ်အမည် (ဥပမာ - ဖတ်လက်စများ)">
+      <button class="btn btn-sm" style="width:100%; margin-bottom:8px;" onclick="addFolderAndSaveBook()">+ အကန့်အသစ်ဖွဲ့ပြီး သိမ်းမည်</button>
+      <button class="btn btn-sm btn-secondary" style="width:100%;" onclick="closeFolderModal()">ပိတ်မည်</button>
+    </div>
+  </div>
+
+  <!-- Bottom Navigation -->
+  <div class="bottom-nav">
+    <div id="navStore" class="nav-item active" onclick="showView('storeView')">📚 စာအုပ်ဆိုင်</div>
+    <div id="navShelf" class="nav-item" onclick="showView('shelfView')">🗂 စာအုပ်စင် (Favorites)</div>
+  </div>
+
+  <script>
+    // ====================================================
+    // အရေးကြီး - အဆင့် (၂.၄) က ရခဲ့သော Web App URL ကို အောက်ပါမျက်တောင်ကြားတွင် ထည့်ပါ
+    // ====================================================
+    const API_URL = "https://script.google.com/macros/s/AKfycbyb5NG6aQt1x9FpgHxeO-FfjdrQXwp1TFFOWK9TkfpIHp8NCHxpSlZ1uJX64keXNHL8/exec";
+
+    // Telegram User အချက်အလက် ရယူခြင်း
+    const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+    if (tg) {
+      tg.ready();
+      tg.expand();
+    }
+
+    const tgUser = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) ? tg.initDataUnsafe.user : null;
+    const USER_ID = tgUser ? String(tgUser.id) : "";
+    const USERNAME = tgUser ? (tgUser.username ? "@" + tgUser.username : tgUser.first_name) : "Guest";
+
+    let catalogBooks = [];
+    let catalogChapters = [];
+    let purchasedBooks = [];
+    let userFavorites = { "စိတ်ကြိုက်စာအုပ်များ": [] };
+    let currentFolder = "စိတ်ကြိုက်စာအုပ်များ";
+    let selectedBookId = null;
+    let currentFontSize = 17;
+
+    // ====================================================
+    // ANTI-PIRACY: COPY, RIGHT-CLICK, SCREENSHOT & BLUR
+    // ====================================================
+    document.addEventListener("contextmenu", e => e.preventDefault());
+    document.addEventListener("copy", e => e.preventDefault());
+    document.addEventListener("cut", e => e.preventDefault());
+    document.addEventListener("dragstart", e => e.preventDefault());
+
+    function activateBlurProtection() {
+      document.getElementById("mainWrapper").classList.add("blurred-protection");
+      document.getElementById("securityOverlay").style.display = "flex";
+    }
+
+    function resumeFromBlur() {
+      document.getElementById("mainWrapper").classList.remove("blurred-protection");
+      document.getElementById("securityOverlay").style.display = "none";
+    }
+
+    // Window Focus ပျောက်သွားချိန် သို့မဟုတ် App ပြောင်းလိုက်ချိန်တွင် ချက်ချင်း ဝါးသွားစေခြင်း
+    window.addEventListener("blur", activateBlurProtection);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) activateBlurProtection();
+    });
+
+    // PrintScreen သို့မဟုတ် Shortcut နှိပ်လျှင် ဝါးသွားစေခြင်း
+    window.addEventListener("keyup", e => {
+      if (e.key === "PrintScreen" || (e.metaKey && e.shiftKey) || (e.ctrlKey && e.key === "p")) {
+        activateBlurProtection();
+      }
+    });
+
+    // Dynamic Watermark တည်ဆောက်ခြင်း
+    function setupWatermark() {
+      const container = document.getElementById("watermarkContainer");
+      container.innerHTML = "";
+      const text = `ID: ${USER_ID || "UNVERIFIED"} (${USERNAME})`;
+      for (let i = 0; i < 45; i++) {
+        const div = document.createElement("div");
+        div.className = "watermark-item";
+        div.textContent = text;
+        container.appendChild(div);
+      }
+    }
+
+    // ====================================================
+    // APP INITIALIZATION & DATA LOADING
+    // ====================================================
+    window.onload = function() {
+      if (!USER_ID) {
+        document.getElementById("userBadge").textContent = "🔒 Telegram ပြင်ပ";
+        document.getElementById("mainWrapper").innerHTML = `
+          <div style="text-align:center; padding: 40px 16px;">
+            <h2 style="color:#ef4444; margin-bottom:12px;">🔒 ဝင်ရောက်ခွင့် ကန့်သတ်ထားပါသည်</h2>
+            <p style="color:#cbd5e1; line-height:1.7;">
+              ဤစာအုပ်ဖတ်ရှုသည့် စနစ်ကို ပြင်ပ Browser သို့မဟုတ် Share ထားသော Link မှတစ်ဆင့် တိုက်ရိုက်ဖွင့်ခွင့် မပြုပါ။<br><br>
+              ကျေးဇူးပြု၍ သင်၏ <b>Telegram App</b> အတွင်းရှိ တရားဝင် Bot မှတစ်ဆင့်သာ ဝင်ရောက်ဖတ်ရှုပါ။
+            </p>
+          </div>
+        `;
+        return;
+      }
+
+      document.getElementById("userBadge").textContent = `${USERNAME} (#${USER_ID})`;
+      setupWatermark();
+      loadCatalog();
+    };
+
+    async function loadCatalog() {
+      const bookListEl = document.getElementById("bookList");
+      bookListEl.innerHTML = "<p style='grid-column: span 2; text-align:center; color:#94a3b8;'>စာအုပ်စာရင်း ရယူနေပါသည်...</p>";
+      try {
+        const res = await fetch(`${API_URL}?action=getCatalog&userId=${encodeURIComponent(USER_ID)}&username=${encodeURIComponent(USERNAME)}`);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "Failed");
+
+        catalogBooks = data.books || [];
+        catalogChapters = data.chapters || [];
+        purchasedBooks = data.purchasedBooks || [];
+        if (data.favorites && Object.keys(data.favorites).length > 0) {
+          userFavorites = data.favorites;
+          currentFolder = Object.keys(userFavorites)[0];
+        }
+        renderStoreBooks();
+        renderShelf();
+      } catch (err) {
+        bookListEl.innerHTML = `<p style="grid-column: span 2; color:#ef4444; text-align:center;">ချိတ်ဆက်မှု အမှားအယွင်းရှိနေပါသည်။ API_URL မှန်ကန်ကြောင်း စစ်ဆေးပါ။</p>`;
+      }
+    }
+
+    function renderStoreBooks() {
+      const bookListEl = document.getElementById("bookList");
+      if (catalogBooks.length === 0) {
+        bookListEl.innerHTML = "<p style='grid-column: span 2; text-align:center;'>စာအုပ် မရှိသေးပါ။</p>";
+        return;
+      }
+
+      bookListEl.innerHTML = "";
+      catalogBooks.forEach(book => {
+        const isFree = book.status.toLowerCase() === "free";
+        const isOwned = purchasedBooks.includes(book.bookId);
+        let badgeHtml = `<span class="badge badge-paid">💰 ${book.price} Ks</span>`;
+        if (isFree) badgeHtml = `<span class="badge badge-free">🔓 Free</span>`;
+        else if (isOwned) badgeHtml = `<span class="badge badge-owned">✅ ဝယ်ယူပြီး</span>`;
+
+        const card = document.createElement("div");
+        card.className = "book-card";
+        card.onclick = () => openBookDetail(book.bookId);
+        card.innerHTML = `
+          <img class="book-cover" src="${book.coverUrl || 'https://via.placeholder.com/300x400?text=No+Cover'}" alt="Cover">
+          <div class="book-info">
+            <div class="book-title">${book.title}</div>
+            ${badgeHtml}
+          </div>
+        `;
+        bookListEl.appendChild(card);
+      });
+    }
+
+    // ====================================================
+    // BOOK DETAIL & CHAPTERS
+    // ====================================================
+    function openBookDetail(bookId) {
+      selectedBookId = bookId;
+      const book = catalogBooks.find(b => b.bookId === bookId);
+      if (!book) return;
+
+      const isFree = book.status.toLowerCase() === "free";
+      const isOwned = purchasedBooks.includes(book.bookId);
+      const headerEl = document.getElementById("bookDetailHeader");
+
+      let actionButtonHtml = "";
+      if (!isFree && !isOwned) {
+        actionButtonHtml = `<button class="btn btn-buy" onclick="buyBook('${book.bookId}')">💳 ဤစာအုပ်ကို ဝယ်ယူမည် (${book.price} Ks)</button>`;
+      } else {
+        actionButtonHtml = `<div class="badge badge-owned" style="padding:8px; width:100%; margin-top:8px;">🔓 အပိုင်းအားလုံး ဖတ်ရှုနိုင်ပါပြီ</div>`;
+      }
+
+      headerEl.innerHTML = `
+        <div style="display:flex; gap:14px; background:var(--card-bg); padding:14px; border-radius:12px; border:1px solid #334155;">
+          <img src="${book.coverUrl}" style="width:95px; height:135px; object-fit:cover; border-radius:8px;">
+          <div style="flex:1;">
+            <h2 style="font-size:16px; margin-bottom:6px;">${book.title}</h2>
+            <p style="font-size:13px; color:var(--text-sub); margin-bottom:8px; line-height:1.5;">${book.description}</p>
+            <button class="btn btn-sm btn-secondary" onclick="openFolderModal('${book.bookId}')">⭐ စာအုပ်စင်ထဲ သိမ်းမည်</button>
+          </div>
+        </div>
+        ${actionButtonHtml}
+      `;
+
+      const chaps = catalogChapters
+        .filter(c => c.bookId === bookId)
+        .sort((a, b) => a.chapterNumber - b.chapterNumber);
+
+      const chapListEl = document.getElementById("chapterList");
+      chapListEl.innerHTML = "";
+
+      if (chaps.length === 0) {
+        chapListEl.innerHTML = "<p style='color:#94a3b8;'>အပိုင်းတွဲများ မရှိသေးပါ။</p>";
+      } else {
+        chaps.forEach(ch => {
+          const canRead = isFree || isOwned || ch.accessType.toLowerCase() === "free";
+          const div = document.createElement("div");
+          div.className = "chapter-item";
+          div.onclick = () => openChapterReader(ch.chapterId, canRead);
+          div.innerHTML = `
+            <span style="font-size:14px; font-weight:500;">${ch.chapterTitle}</span>
+            <span class="badge ${canRead ? 'badge-free' : 'badge-paid'}">
+              ${canRead ? '📖 ဖတ်မည်' : '🔒 Paid'}
+            </span>
+          `;
+          chapListEl.appendChild(div);
+        });
+      }
+
+      showView("bookDetailView");
+    }
+
+    // စာအုပ်ဝယ်ယူရန် နှိပ်သည့်အခါ
+    async function buyBook(bookId) {
+      try {
+        const res = await fetch(`${API_URL}?action=initOrder&userId=${encodeURIComponent(USER_ID)}&username=${encodeURIComponent(USERNAME)}&bookId=${encodeURIComponent(bookId)}`);
+        const data = await res.json();
+        alert(data.message || "Bot ဆီသို့ ငွေလွှဲအချက်အလက်များ ပို့ပေးထားပါသည်။");
+        if (tg) tg.close(); // ဝယ်သူ ငွေလွှဲပြေစာပုံ ပို့နိုင်ရန် Bot Chat သို့ တန်းပို့ပေးမည်
+      } catch (e) {
+        alert("ချိတ်ဆက်မှု အမှားဖြစ်ပေါ်နေပါသည်။");
+      }
+    }
+
+    // ====================================================
+    // READER VIEW
+    // ====================================================
+    async function openChapterReader(chapterId, canRead) {
+      if (!canRead) {
+        alert("🔒 ဤအပိုင်းသည် Paid (အခပေး) အပိုင်းဖြစ်ပါသည်။ ဖတ်ရှုနိုင်ရန် အပေါ်ရှိ [ဤစာအုပ်ကို ဝယ်ယူမည်] ခလုတ်ကို နှိပ်၍ ဝယ်ယူပေးပါ။");
+        return;
+      }
+
+      showView("readerView");
+      document.getElementById("watermarkContainer").style.display = "flex";
+      document.getElementById("readerTitle").textContent = "စာသားရယူနေပါသည်...";
+      document.getElementById("readerText").textContent = "ခေတ္တစောင့်ဆိုင်းပေးပါ...";
+
+      try {
+        const res = await fetch(`${API_URL}?action=getChapter&userId=${encodeURIComponent(USER_ID)}&chapterId=${encodeURIComponent(chapterId)}`);
+        const data = await res.json();
+
+        if (!data.allowed) {
+          document.getElementById("readerTitle").textContent = "🔒 ဖတ်ရှုခွင့် မရှိသေးပါ";
+          document.getElementById("readerText").textContent = data.message;
+          return;
+        }
+
+        const chap = data.chapter;
+        document.getElementById("readerTitle").textContent = chap.chapterTitle;
+        document.getElementById("readerText").textContent = chap.content;
+        window.scrollTo(0, 0);
+
+        // ရှေ့အပိုင်း / နောက်အပိုင်း ခလုတ်များ စီမံခြင်း
+        const bookChaps = catalogChapters
+          .filter(c => c.bookId === chap.bookId)
+          .sort((a, b) => a.chapterNumber - b.chapterNumber);
+        const idx = bookChaps.findIndex(c => c.chapterId === chap.chapterId);
+
+        const prevBtn = document.getElementById("prevChapBtn");
+        const nextBtn = document.getElementById("nextChapBtn");
+
+        prevBtn.disabled = idx <= 0;
+        prevBtn.style.opacity = idx <= 0 ? "0.4" : "1";
+        prevBtn.onclick = () => {
+          if (idx > 0) openChapterReader(bookChaps[idx - 1].chapterId, true);
+        };
+
+        nextBtn.disabled = idx >= bookChaps.length - 1;
+        nextBtn.style.opacity = idx >= bookChaps.length - 1 ? "0.4" : "1";
+        nextBtn.onclick = () => {
+          if (idx < bookChaps.length - 1) {
+            const nextCh = bookChaps[idx + 1];
+            const book = catalogBooks.find(b => b.bookId === chap.bookId);
+            const nextAllowed = (book && book.status.toLowerCase() === "free") ||
+                                purchasedBooks.includes(chap.bookId) ||
+                                nextCh.accessType.toLowerCase() === "free";
+            openChapterReader(nextCh.chapterId, nextAllowed);
+          }
+        };
+      } catch (e) {
+        document.getElementById("readerText").textContent = "စာသားရယူရာတွင် အမှားအယွင်းရှိနေပါသည်။";
+      }
+    }
+
+    function closeReader() {
+      document.getElementById("watermarkContainer").style.display = "none";
+      showView("bookDetailView");
+    }
+
+    function changeFontSize(delta) {
+      currentFontSize = Math.min(28, Math.max(13, currentFontSize + delta));
+      document.getElementById("readerText").style.fontSize = currentFontSize + "px";
+    }
+
+    // ====================================================
+    // FOLDERS / BOOKSHELF / FAVORITES SYSTEM
+    // ====================================================
+    function openFolderModal(bookId) {
+      selectedBookId = bookId;
+      const container = document.getElementById("modalFolderOptions");
+      container.innerHTML = "";
+      Object.keys(userFavorites).forEach(folderName => {
+        const btn = document.createElement("button");
+        btn.className = "btn btn-sm btn-secondary";
+        btn.style.width = "100%";
+        btn.style.marginBottom = "6px";
+        btn.textContent = `📁 ${folderName} ထဲသို့ ထည့်မည်`;
+        btn.onclick = () => saveBookToFolder(folderName, bookId);
+        container.appendChild(btn);
+      });
+      document.getElementById("folderModal").style.display = "flex";
+    }
+
+    function closeFolderModal() {
+      document.getElementById("folderModal").style.display = "none";
+    }
+
+    function addFolderAndSaveBook() {
+      const name = document.getElementById("newFolderInput").value.trim();
+      if (!name) return;
+      if (!userFavorites[name]) userFavorites[name] = [];
+      document.getElementById("newFolderInput").value = "";
+      saveBookToFolder(name, selectedBookId);
+    }
+
+    async function saveBookToFolder(folderName, bookId) {
+      if (!userFavorites[folderName]) userFavorites[folderName] = [];
+      if (!userFavorites[folderName].includes(bookId)) {
+        userFavorites[folderName].push(bookId);
+      }
+      currentFolder = folderName;
+      closeFolderModal();
+      renderShelf();
+      await syncFavoritesToServer();
+      alert(`📁 "${folderName}" အကန့်ထဲသို့ သိမ်းဆည်းပြီးပါပြီ။`);
+    }
+
+    function createNewFolderPrompt() {
+      const name = prompt("စာအုပ်စင် အကန့်အသစ် (Folder) အမည် ရိုက်ထည့်ပါ -");
+      if (!name || !name.trim()) return;
+      const cleanName = name.trim();
+      if (!userFavorites[cleanName]) {
+        userFavorites[cleanName] = [];
+        currentFolder = cleanName;
+        renderShelf();
+        syncFavoritesToServer();
+      }
+    }
+
+    function renderShelf() {
+      const tabsEl = document.getElementById("folderTabs");
+      const listEl = document.getElementById("shelfBookList");
+      tabsEl.innerHTML = "";
+      listEl.innerHTML = "";
+
+      const folderNames = Object.keys(userFavorites);
+      if (!folderNames.includes(currentFolder)) {
+        currentFolder = folderNames[0] || "စိတ်ကြိုက်စာအုပ်များ";
+      }
+
+      folderNames.forEach(fName => {
+        const tab = document.createElement("div");
+        tab.className = "folder-tab " + (fName === currentFolder ? "active" : "");
+        tab.textContent = `📁 ${fName} (${(userFavorites[fName] || []).length})`;
+        tab.onclick = () => {
+          currentFolder = fName;
+          renderShelf();
+        };
+        tabsEl.appendChild(tab);
+      });
+
+      const bookIds = userFavorites[currentFolder] || [];
+      if (bookIds.length === 0) {
+        listEl.innerHTML = "<p style='grid-column: span 2; color:#94a3b8; text-align:center; padding: 20px 0;'>ဤအကန့်ထဲတွင် သိမ်းထားသော စာအုပ်မရှိသေးပါ။</p>";
+        return;
+      }
+
+      bookIds.forEach(bId => {
+        const book = catalogBooks.find(b => b.bookId === bId);
+        if (!book) return;
+        const card = document.createElement("div");
+        card.className = "book-card";
+        card.innerHTML = `
+          <img class="book-cover" src="${book.coverUrl}" onclick="openBookDetail('${book.bookId}')">
+          <div class="book-info">
+            <div class="book-title" onclick="openBookDetail('${book.bookId}')">${book.title}</div>
+            <button class="btn btn-sm btn-secondary" onclick="removeBookFromFolder('${currentFolder}', '${book.bookId}')">🗑 ဖယ်ရှားမည်</button>
+          </div>
+        `;
+        listEl.appendChild(card);
+      });
+    }
+
+    async function removeBookFromFolder(folderName, bookId) {
+      userFavorites[folderName] = (userFavorites[folderName] || []).filter(id => id !== bookId);
+      renderShelf();
+      await syncFavoritesToServer();
+    }
+
+    async function syncFavoritesToServer() {
+      try {
+        await fetch(`${API_URL}?action=saveFavorites&userId=${encodeURIComponent(USER_ID)}&username=${encodeURIComponent(USERNAME)}&favorites=${encodeURIComponent(JSON.stringify(userFavorites))}`);
+      } catch (e) {}
+    }
+
+    // View ပြောင်းလဲခြင်း
+    function showView(viewId) {
+      ["storeView", "bookDetailView", "readerView", "shelfView"].forEach(id => {
+        document.getElementById(id).style.display = (id === viewId) ? "block" : "none";
+      });
+      if (viewId !== "readerView") {
+        document.getElementById("watermarkContainer").style.display = "none";
+      }
+      document.getElementById("navStore").classList.toggle("active", viewId === "storeView" || viewId === "bookDetailView");
+      document.getElementById("navShelf").classList.toggle("active", viewId === "shelfView");
+    }
+  </script>
+</body>
+</html>
